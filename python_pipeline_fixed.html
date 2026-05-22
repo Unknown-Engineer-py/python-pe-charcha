@@ -1,0 +1,434 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+#wrap{background:transparent}
+.sr-only{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden}
+#stage{width:100%;background:#06080f;border-radius:12px;overflow:hidden;position:relative;aspect-ratio:16/9}
+#stage svg{position:absolute;inset:0;width:100%;height:100%}
+#bar{position:absolute;top:0;left:0;height:3px;width:0%;background:#7c3aed;transition:width .08s linear;z-index:5}
+#slide-lbl{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.1em;font-family:monospace;z-index:5}
+#ctrls{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--color-background-secondary);border-radius:12px;margin-top:8px;flex-wrap:wrap}
+.cbtn{display:flex;align-items:center;gap:5px;padding:5px 13px;border-radius:8px;border:.5px solid var(--color-border-secondary);background:var(--color-background-primary);font-size:12px;color:var(--color-text-primary);cursor:pointer}
+.cbtn:hover{background:var(--color-background-secondary)}
+.cbtn:active{transform:scale(.97)}
+#dots{display:flex;gap:6px;margin-left:auto}
+.dot{width:22px;height:6px;border-radius:3px;border:.5px solid var(--color-border-secondary);cursor:pointer;background:var(--color-background-secondary);transition:background .2s}
+.dot.on{background:#7c3aed;border-color:transparent}
+#spd-lbl{font-size:12px;color:var(--color-text-secondary);min-width:28px}
+
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes spinCW{to{transform:rotate(360deg)}}
+@keyframes spinCCW{to{transform:rotate(-360deg)}}
+@keyframes pulse{0%{r:20;opacity:.9}100%{r:70;opacity:0}}
+@keyframes dash{to{stroke-dashoffset:-20}}
+</style>
+
+<h2 class="sr-only">Interactive 3-slide animation: Python source code flows to compiler, compiler produces bytecode, PVM converts bytecode to machine code. Controls for play/pause, speed, and slide navigation.</h2>
+
+<div id="wrap">
+  <div id="stage">
+    <div id="bar"></div>
+    <svg id="sv" viewBox="0 0 680 382" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="slide-lbl">Slide 1 / 3</div>
+  </div>
+  <div id="ctrls">
+    <button class="cbtn" onclick="go(-1)"><i class="ti ti-chevron-left" aria-hidden="true"></i> Prev</button>
+    <button class="cbtn" id="playbtn" onclick="togglePlay()"><i class="ti ti-player-pause" id="pico" aria-hidden="true"></i> <span id="ptxt">Pause</span></button>
+    <button class="cbtn" onclick="go(1)">Next <i class="ti ti-chevron-right" aria-hidden="true"></i></button>
+    <span style="font-size:12px;color:var(--color-text-secondary)">Speed</span>
+    <input type="range" min="1" max="6" step="1" value="2" id="spd" style="width:80px" oninput="setSpd(+this.value)">
+    <span id="spd-lbl">1×</span>
+    <div id="dots"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+const W=680,H=382;
+let slide=0,playing=true,spd=1,raf=null,phase=0,timers=[];
+const spdMap={1:.5,2:1,3:1.5,4:2,5:2.5,6:3};
+
+const sv=document.getElementById('sv');
+const bar=document.getElementById('bar');
+const lbl=document.getElementById('slide-lbl');
+const dotsEl=document.getElementById('dots');
+
+for(let i=0;i<3;i++){
+  const d=document.createElement('div');
+  d.className='dot'+(i===0?' on':'');
+  d.onclick=()=>launch(i);
+  dotsEl.appendChild(d);
+}
+function updDots(){[...dotsEl.children].forEach((d,i)=>d.classList.toggle('on',i===slide))}
+
+function setSpd(v){spd=spdMap[v];document.getElementById('spd-lbl').textContent=spdMap[v].toFixed(1).replace('.0','')+'×'}
+
+function togglePlay(){
+  playing=!playing;
+  document.getElementById('pico').className='ti '+(playing?'ti-player-pause':'ti-player-play');
+  document.getElementById('ptxt').textContent=playing?'Pause':'Play';
+  if(playing&&raf===null)animLoop();
+}
+
+function go(d){launch((slide+d+3)%3)}
+
+function mkEl(tag,attrs,text){
+  const ns='http://www.w3.org/2000/svg';
+  const e=tag==='g'||tag==='defs'||tag==='linearGradient'||tag==='stop'||tag==='circle'||tag==='rect'||tag==='line'||tag==='polygon'||tag==='text'||tag==='clipPath'||tag==='ellipse'||tag==='path'||tag==='marker'?
+    document.createElementNS(ns,tag):document.createElement(tag);
+  if(attrs)Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));
+  if(text!=null)e.textContent=text;
+  return e;
+}
+function ap(parent,...children){children.forEach(c=>parent.appendChild(c));return parent}
+function tx(x,y,txt,fill,fs,anchor,fw){
+  return mkEl('text',{x,y,fill:fill||'#e2e8f0','font-size':fs||11,'font-family':'monospace','text-anchor':anchor||'middle','font-weight':fw||'normal'},txt);
+}
+
+function clearAll(){
+  if(raf){cancelAnimationFrame(raf);raf=null;}
+  timers.forEach(t=>{clearInterval(t);clearTimeout(t)});
+  timers=[];
+  while(sv.firstChild)sv.removeChild(sv.firstChild);
+  phase=0;
+}
+
+function setBar(p){bar.style.width=Math.min(100,p*100)+'%'}
+
+/* ── COMMON BG ── */
+function drawBg(){
+  ap(sv,mkEl('rect',{x:0,y:0,width:W,height:H,fill:'#06080f'}));
+  const g=mkEl('g',{opacity:.055});
+  for(let y=38;y<H;y+=38)ap(g,mkEl('line',{x1:0,y1:y,x2:W,y2:y,stroke:'#4488ff','stroke-width':.5}));
+  for(let x=38;x<W;x+=38)ap(g,mkEl('line',{x1:x,y1:0,x2:x,y2:H,stroke:'#4488ff','stroke-width':.5}));
+  ap(sv,g);
+}
+
+/* ── DEFS (gradients + marker) ── */
+function addDefs(){
+  const d=mkEl('defs');
+  const mk=mkEl('marker',{id:'arr',viewBox:'0 0 10 10',refX:8,refY:5,markerWidth:6,markerHeight:6,orient:'auto-start-reverse'});
+  const mp=mkEl('path',{d:'M2 1L8 5L2 9',fill:'none',stroke:'context-stroke','stroke-width':1.5,'stroke-linecap':'round','stroke-linejoin':'round'});
+  ap(mk,mp);ap(d,mk);
+  [['lg1','#00d4ff','#7c3aed'],['lg2','#7c3aed','#10b981'],['lg3','#10b981','#7c3aed'],['lg4','#7c3aed','#f97316'],['topbar','#00d4ff','#7c3aed']].forEach(([id,c1,c2])=>{
+    const lg=mkEl('linearGradient',{id,x1:'0%',y1:'0%',x2:'100%',y2:'0%'});
+    ap(lg,mkEl('stop',{offset:'0%','stop-color':c1}),mkEl('stop',{offset:'100%','stop-color':c2}));
+    ap(d,lg);
+  });
+  ap(sv,d);
+}
+
+/* ── EDITOR PANEL ── */
+function editorPanel(x,y,w,h){
+  const g=mkEl('g');
+  ap(g,mkEl('rect',{x,y,width:w,height:h,rx:8,fill:'#0d1b3e',stroke:'#00d4ff','stroke-width':.8}));
+  ap(g,mkEl('rect',{x,y,width:w,height:26,rx:8,fill:'#0a122e'}));
+  ap(g,mkEl('rect',{x,y:y+14,width:w,height:12,fill:'#0a122e'}));
+  [{cx:x+14,f:'#ff5f57'},{cx:x+28,f:'#febc2e'},{cx:x+42,f:'#28c840'}].forEach(({cx,f})=>ap(g,mkEl('circle',{cx,cy:y+13,r:5,fill:f})));
+  ap(g,tx(x+w/2,y+17,'main.py','rgba(255,255,255,.35)',10));
+  ap(g,mkEl('rect',{x,y:y+26,width:24,height:h-26,fill:'#080e20'}));
+  ap(g,mkEl('rect',{x:x+24,y:y+26,width:w-24,height:h-26,fill:'#080e1a'}));
+  [1,2].forEach((n,i)=>ap(g,tx(x+12,y+50+i*24,n,'#2a4a6a',10)));
+  ap(sv,g);
+  return g;
+}
+
+/* ── CODE TEXT (SVG native) ── */
+function addCode(x,y){
+  const g=mkEl('g',{'font-family':'monospace','font-size':13});
+  ap(g,mkEl('text',{x,y,fill:'#9d6cf7'},undefined));
+  const t1=mkEl('text',{x,y});
+  const kw=mkEl('tspan',{fill:'#9d6cf7'},'print');
+  const op1=mkEl('tspan',{fill:'#94a3b8'},'(');
+  const str=mkEl('tspan',{fill:'#34d399'},'"hello"');
+  const op2=mkEl('tspan',{fill:'#94a3b8'},')');
+  ap(t1,kw,op1,str,op2);
+  const cur=mkEl('rect',{x,y:y+3,width:8,height:14,fill:'#00d4ff'});
+  cur.style.animation='blink 1s step-end infinite';
+  ap(g,t1,cur);
+  ap(sv,g);
+}
+
+/* ── COMPILER BOX ── */
+function compilerBox(cx,cy){
+  const g=mkEl('g');
+  ap(g,mkEl('circle',{cx,cy,r:88,fill:'none',stroke:'#7c3aed','stroke-width':.6,opacity:.25,'stroke-dasharray':'16,8'}));
+  ap(g,mkEl('rect',{x:cx-62,y:cy-65,width:124,height:130,rx:12,fill:'#100820',stroke:'#7c3aed','stroke-width':1.5}));
+  ap(g,mkEl('rect',{x:cx-62,y:cy-65,width:124,height:24,rx:12,fill:'#1e0f48'}));
+  ap(g,mkEl('rect',{x:cx-62,y:cy-52,width:124,height:11,fill:'#1e0f48'}));
+  ap(g,tx(cx,cy-51,'COMPILER','#c4b5fd',9));
+  [[cx-30,cy-28,cx+30,cy-28],[cx-30,cy,cx+30,cy],[cx-30,cy+28,cx+30,cy+28]].forEach(([x1,y1,x2,y2])=>ap(g,mkEl('line',{x1,y1,x2,y2,stroke:'#00d4ff','stroke-width':1.2,opacity:.6})));
+  [[cx-18,cy-28,cx-18,cy+28],[cx+18,cy-28,cx+18,cy+28]].forEach(([x1,y1,x2,y2])=>ap(g,mkEl('line',{x1,y1,x2,y2,stroke:'#00d4ff','stroke-width':1,opacity:.5})));
+  [{cx:cx-18,cy:cy-28,f:'#00d4ff'},{cx:cx-18,cy,f:'#7c3aed'},{cx:cx-18,cy:cy+28,f:'#00d4ff'},{cx:cx+18,cy:cy-28,f:'#7c3aed'},{cx:cx+18,cy,f:'#00d4ff'},{cx:cx+18,cy:cy+28,f:'#7c3aed'}].forEach(p=>ap(g,mkEl('circle',{cx:p.cx,cy:p.cy,r:3.5,fill:p.f})));
+  [[cx-9,cy-32,18,8],[cx-9,cy-4,18,8],[cx-9,cy+20,18,8]].forEach(([x,y,w,h])=>ap(g,mkEl('rect',{x,y,width:w,height:h,rx:2,fill:'#0a0520',stroke:'#a78bfa','stroke-width':.8})));
+  ap(g,tx(cx,cy+82,'Compiler','#a78bfa',11));
+  ap(sv,g);
+}
+
+/* ── GEAR PAIR ── */
+function gearPair(cx,cy){
+  const g1=mkEl('g');
+  g1.style.transformOrigin=`${cx-26}px ${cy}px`;
+  g1.style.animation='spinCW 3s linear infinite';
+  ap(g1,mkEl('circle',{cx:cx-26,cy,'r':38,fill:'none',stroke:'#7c3aed','stroke-width':2,'stroke-dasharray':'11,6'}));
+  ap(g1,mkEl('circle',{cx:cx-26,cy,r:27,fill:'#1a0a4e',stroke:'#a78bfa','stroke-width':1}));
+  ap(g1,mkEl('circle',{cx:cx-26,cy,r:11,fill:'#0a0520',stroke:'#7c3aed','stroke-width':1.5}));
+  [{x:cx-31,y:cy-42,w:10,h:7},{x:cx-31,y:cy+35,w:10,h:7},{x:cx-68,y:cy-3,w:7,h:10},{x:cx+13,y:cy-3,w:7,h:10}].forEach(r=>ap(g1,mkEl('rect',{x:r.x,y:r.y,width:r.w,height:r.h,rx:2,fill:'#7c3aed'})));
+
+  const g2=mkEl('g');
+  g2.style.transformOrigin=`${cx+28}px ${cy}px`;
+  g2.style.animation='spinCCW 3s linear infinite';
+  ap(g2,mkEl('circle',{cx:cx+28,cy,r:28,fill:'none',stroke:'#00d4ff','stroke-width':1.8,'stroke-dasharray':'9,5'}));
+  ap(g2,mkEl('circle',{cx:cx+28,cy,r:20,fill:'#0a1a3e',stroke:'#00d4ff','stroke-width':.8}));
+  ap(g2,mkEl('circle',{cx:cx+28,cy,r:8,fill:'#050a1a',stroke:'#00d4ff','stroke-width':1.2}));
+  [{x:cx+24,y:cy-31,w:8,h:6},{x:cx+24,y:cy+25,w:8,h:6},{x:cx-3,y:cy-3,w:6,h:8},{x:cx+56,y:cy-3,w:6,h:8}].forEach(r=>ap(g2,mkEl('rect',{x:r.x,y:r.y,width:r.w,height:r.h,rx:2,fill:'#00d4ff'})));
+
+  ap(sv,g1,g2);
+}
+
+/* ── BYTECODE PANEL ── */
+function bytecodePanel(x,y,w,h,hdrColor){
+  const g=mkEl('g');
+  ap(g,mkEl('rect',{x,y,width:w,height:h,rx:8,fill:'#051a0d',stroke:hdrColor||'#10b981','stroke-width':.8}));
+  ap(g,mkEl('rect',{x,y,width:w,height:26,rx:8,fill:'#030e07'}));
+  ap(g,mkEl('rect',{x,y:y+14,width:w,height:12,fill:'#030e07'}));
+  [{cx:x+14,f:'#ff5f57'},{cx:x+28,f:'#febc2e'},{cx:x+42,f:'#28c840'}].forEach(({cx,f})=>ap(g,mkEl('circle',{cx,cy:y+13,r:4,fill:f})));
+  ap(g,tx(x+w/2,y+17,'main.pyc','rgba(255,255,255,.35)',9));
+  ap(g,mkEl('rect',{x,y:y+26,width:w,height:h-26,fill:'#020a04'}));
+  ap(sv,g);
+}
+
+/* ── PVM ENGINE ── */
+function pvmEngine(cx,cy){
+  const g=mkEl('g');
+  ap(g,mkEl('circle',{cx,cy,r:125,fill:'none',stroke:'#7c3aed','stroke-width':.5,opacity:.18,'stroke-dasharray':'14,8'}));
+  ap(g,mkEl('rect',{x:cx-78,y:cy-100,width:156,height:200,rx:14,fill:'#09071e',stroke:'#7c3aed','stroke-width':1.8}));
+  ap(g,mkEl('rect',{x:cx-78,y:cy-100,width:156,height:28,rx:14,fill:'#1e0060'}));
+  ap(g,mkEl('rect',{x:cx-78,y:cy-84,width:156,height:12,fill:'#1e0060'}));
+  ap(g,tx(cx,cy-80,'PVM','#c4b5fd',11));
+  [58,42,26].forEach((r,i)=>ap(g,mkEl('circle',{cx,cy,r,fill:'none',stroke:['#7c3aed','#a78bfa','#c4b5fd'][i],'stroke-width':[2,1.5,1.2][i],opacity:[.7,.75,.85]})));
+  ap(g,mkEl('circle',{cx,cy,r:13,fill:'#7c3aed',opacity:.85}));
+  ap(g,mkEl('circle',{cx,cy,r:13,fill:'none',stroke:'#e9d5ff','stroke-width':2}));
+  [{cx,cy:cy-62},{cx:cx+62,cy},{cx,cy:cy+62},{cx:cx-62,cy}].forEach(p=>ap(g,mkEl('circle',{cx:p.cx,cy:p.cy,r:4,fill:'#c4b5fd',opacity:.85})));
+  ap(sv,g);
+  ap(sv,tx(cx,cy+118,'Python Virtual Machine (PVM)','#a78bfa',10));
+}
+
+/* ── CHIP PANEL ── */
+function chipPanel(x,y,w,h){
+  const g=mkEl('g');
+  ap(g,mkEl('rect',{x,y,width:w,height:h,rx:8,fill:'#050200',stroke:'#f97316','stroke-width':.8}));
+  const cg=mkEl('g',{opacity:.12});
+  for(let cx2=x+16;cx2<x+w;cx2+=16)ap(cg,mkEl('line',{x1:cx2,y1:y,x2:cx2,y2:y+h,stroke:'#f97316','stroke-width':.5}));
+  for(let cy2=y+16;cy2<y+h;cy2+=16)ap(cg,mkEl('line',{x1:x,y1:cy2,x2:x+w,y2:cy2,stroke:'#f97316','stroke-width':.5}));
+  ap(g,cg);
+  ap(g,mkEl('rect',{x:x+16,y:y+16,width:w-32,height:140,rx:6,fill:'#0f0800',stroke:'#f97316','stroke-width':1.2}));
+  const units=[['ALU',x+50],['CU',x+100],['REG',x+150]];
+  units.forEach(([t,cx2])=>{
+    ap(g,mkEl('rect',{x:cx2-20,y:y+30,width:40,height:30,rx:3,fill:'#1a0800',stroke:'#f97316','stroke-width':.8}));
+    ap(g,tx(cx2,y+50,t,'#f97316',10));
+  });
+  ap(g,mkEl('rect',{x:x+18,y:y+74,width:w-36,height:24,rx:3,fill:'#0f0800',stroke:'#fb923c','stroke-width':.6}));
+  ap(g,tx(x+w/2-16,y+83,'MICROPROCESSOR','#f97316',8));
+  ap(g,tx(x+w/2-16,y+94,'x86_64 / ARM','#fb923c',8));
+  ap(sv,g);
+  return g;
+}
+
+/* ── ARROW LINE ── */
+function arrow(x1,y1,x2,y2,grad){
+  const l=mkEl('line',{x1,y1,x2,y2,stroke:`url(#${grad})`,'stroke-width':2.8,'marker-end':'url(#arr)'});
+  ap(sv,l);
+}
+
+/* ── PARTICLE SYSTEM ── */
+function makeParticles(n,fill){
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const c=mkEl('circle',{r:3.5,fill,opacity:0});
+    ap(sv,c);
+    pts.push({el:c,offset:i/n});
+  }
+  return pts;
+}
+function moveParticles(pts,x0,y0,x1,y1,t){
+  pts.forEach(p=>{
+    const f=((p.offset+t)%1);
+    const px=x0+(x1-x0)*f, py=y0+(y1-y0)*f;
+    p.el.setAttribute('cx',px);p.el.setAttribute('cy',py);
+    const op=f<.08?f/.08:f>.92?(1-f)/.08:1;
+    p.el.setAttribute('opacity',op);
+  });
+}
+
+/* ── PULSE RINGS ── */
+function startPulse(cx,cy,color){
+  const g=mkEl('g');ap(sv,g);
+  const tid=setInterval(()=>{
+    const r=mkEl('circle',{cx,cy,r:20,fill:'none',stroke:color,'stroke-width':1.2,opacity:.85});
+    r.style.animation=`pulse 1.6s ease-out forwards`;
+    ap(g,r);
+    setTimeout(()=>{try{g.removeChild(r)}catch(e){}},1600);
+  },1500);
+  timers.push(tid);
+}
+
+/* ── TOP/BOTTOM BARS ── */
+function topBars(){
+  ap(sv,mkEl('rect',{x:0,y:0,width:W,height:3,fill:'url(#topbar)'}));
+  ap(sv,mkEl('rect',{x:0,y:H-3,width:W,height:3,fill:'url(#topbar)'}));
+}
+
+/* ════ SLIDE 1 ════ */
+function slide1(){
+  drawBg();addDefs();
+  topBars();
+  ap(sv,tx(W/2,26,'Python Source Code → Compiler','#60a5fa',11,'middle','500'));
+  editorPanel(36,58,220,240);
+  addCode(68,104);
+  compilerBox(512,H/2);
+  ap(sv,tx(512,H-22,'Stage 1: source code enters the compiler','#5a6a8a',9,'middle'));
+
+  const ax0=258,ax1=448,ay=H/2;
+  arrow(ax0,ay,ax1,ay,'lg1');
+
+  const p1=makeParticles(5,'#00d4ff');
+  const p2=makeParticles(3,'#7c3aed');
+  const p3=makeParticles(3,'#a78bfa');
+  startPulse(512,H/2,'#7c3aed');
+
+  let t=0;
+  function frame(){
+    if(!playing){raf=requestAnimationFrame(frame);return}
+    t+=.003*spd;
+    moveParticles(p1,ax0,ay,ax1,ay,t);
+    moveParticles(p2,ax0,ay,ax1,ay,t+.33);
+    moveParticles(p3,ax0,ay,ax1,ay,t+.66);
+    setBar(Math.min(.32,t*.05));
+    if(t>7){launch(1);return}
+    raf=requestAnimationFrame(frame);
+  }
+  raf=requestAnimationFrame(frame);
+}
+
+/* ════ SLIDE 2 ════ */
+function slide2(){
+  drawBg();addDefs();
+  topBars();
+  ap(sv,tx(W/2,26,'Compiler → Bytecode transformation','#a78bfa',11,'middle','500'));
+
+  editorPanel(16,58,165,200);
+  addCode(48,104);
+  ap(sv,tx(99,54,'Python code','#60a5fa',9,'middle'));
+
+  const CX=340,CY=H/2+8;
+  ap(sv,mkEl('rect',{x:CX-88,y:CY-100,width:176,height:200,rx:12,fill:'#0a0822',stroke:'#7c3aed','stroke-width':1.5}));
+  ap(sv,mkEl('rect',{x:CX-88,y:CY-100,width:176,height:28,rx:12,fill:'#130b38'}));
+  ap(sv,mkEl('rect',{x:CX-88,y:CY-82,width:176,height:10,fill:'#130b38'}));
+  ap(sv,tx(CX,CY-78,'COMPILER ENGINE','#c4b5fd',9,'middle'));
+  gearPair(CX,CY);
+  ap(sv,tx(CX,CY+78,'Analyzing & transforming...','#10b981',9,'middle'));
+
+  bytecodePanel(W-196,58,188,240);
+  ap(sv,tx(W-102,54,'Bytecode (.pyc)','#10b981',9,'middle'));
+
+  const blines=['LOAD_CONST  0','LOAD_NAME   (print)','LOAD_CONST  "hello"','CALL_FUNCTION 1','POP_TOP','RETURN_VALUE'];
+  const bEls=blines.map((txt,i)=>{
+    const t=mkEl('text',{x:W-188,y:90+i*22,fill:'#10b981','font-size':10,'font-family':'monospace',opacity:0});
+    t.textContent=txt;ap(sv,t);return t;
+  });
+
+  const ax0=184,ax1=250,ay=CY;
+  const bx0=CX+90,bx1=W-198;
+  arrow(ax0,ay,ax1,ay,'lg1');
+  arrow(bx0,ay,bx1,ay,'lg2');
+
+  const pL=makeParticles(4,'#00d4ff');
+  const pR=makeParticles(4,'#10b981');
+
+  let t=0,shown=0;
+  function frame(){
+    if(!playing){raf=requestAnimationFrame(frame);return}
+    t+=.003*spd;
+    moveParticles(pL,ax0,ay,ax1,ay,t);
+    moveParticles(pR,bx0,ay,bx1,ay,t+.1);
+    const idx=Math.floor(t*1.2);
+    while(shown<=idx&&shown<blines.length){
+      bEls[shown].setAttribute('opacity',1);
+      bEls[shown].style.transition='opacity .3s';
+      shown++;
+    }
+    setBar(.32+Math.min(.33,t*.05));
+    if(t>8){launch(2);return}
+    raf=requestAnimationFrame(frame);
+  }
+  raf=requestAnimationFrame(frame);
+}
+
+/* ════ SLIDE 3 ════ */
+function slide3(){
+  drawBg();addDefs();
+  topBars();
+  ap(sv,tx(W/2,26,'PVM → Machine language execution','#f97316',11,'middle','500'));
+
+  bytecodePanel(12,64,168,228);
+  ap(sv,tx(96,56,'Python Bytecode','#10b981',9,'middle'));
+  ['LOAD_NAME  print','LOAD_CONST "hello"','CALL_FUNC  1','POP_TOP','RETURN_VAL'].forEach((txt,i)=>{
+    const t=mkEl('text',{x:20,y:94+i*22,fill:'#10b981','font-size':10,'font-family':'monospace'});
+    t.textContent=txt;ap(sv,t);
+  });
+
+  pvmEngine(340,H/2+8);
+  startPulse(340,H/2+8,'#7c3aed');
+
+  chipPanel(W-200,56,188,250);
+  ap(sv,tx(W-106,50,'Machine Language','#f97316',9,'middle'));
+
+  const mlines=['10110011 01001101','00110101 11001010','01010101 10100110','11001101 00110011'];
+  const mEls=mlines.map((txt,i)=>{
+    const t=mkEl('text',{x:W-192,y:120+i*20,fill:'#f97316','font-size':10,'font-family':'monospace',opacity:0});
+    t.textContent=txt;ap(sv,t);return t;
+  });
+
+  const ay=H/2+8;
+  const ax0=182,ax1=260;
+  const bx0=420,bx1=W-202;
+  arrow(ax0,ay,ax1,ay,'lg3');
+  arrow(bx0,ay,bx1,ay,'lg4');
+  ap(sv,tx((bx0+bx1)/2,ay-10,'101010...','#f97316',9,'middle'));
+
+  const pL=makeParticles(4,'#10b981');
+  const pR=makeParticles(4,'#f97316');
+
+  let t=0,shown=0;
+  function frame(){
+    if(!playing){raf=requestAnimationFrame(frame);return}
+    t+=.003*spd;
+    moveParticles(pL,ax0,ay,ax1,ay,t);
+    moveParticles(pR,bx0,ay,bx1,ay,t);
+    const idx=Math.floor(t*1.0);
+    while(shown<=idx&&shown<mlines.length){
+      mEls[shown].setAttribute('opacity',1);
+      shown++;
+    }
+    setBar(.65+Math.min(.34,t*.04));
+    if(t>9){launch(0);return}
+    raf=requestAnimationFrame(frame);
+  }
+  raf=requestAnimationFrame(frame);
+}
+
+const builders=[slide1,slide2,slide3];
+
+function launch(i){
+  clearAll();
+  slide=i;
+  updDots();
+  lbl.textContent=`Slide ${i+1} / 3`;
+  builders[i]();
+}
+
+launch(0);
+
+})();
+</script>

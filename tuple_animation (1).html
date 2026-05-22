@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python Tuples — The Comma Matters</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f17;
+    --editor-bg: #1e1e2e;
+    --editor-border: #2a2d3e;
+    --line-num:  #44475a;
+    --gutter:    #181a25;
+    --output-bg: #12141f;
+    --c-purple:  #bd93f9;
+    --c-green:   #50fa7b;
+    --c-blue:    #8be9fd;
+    --c-amber:   #ffb86c;
+    --c-red:     #ff5555;
+    --c-pink:    #ff79c6;
+    --c-white:   #f8f8f2;
+    --c-comment: #6272a4;
+    --c-dim:     #44475a;
+    --font-code: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-ui:   'Inter', sans-serif;
+    --radius:    10px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--c-white);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2rem 1rem 4rem;
+  }
+
+  .page-title {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .12em;
+    color: var(--c-comment);
+    text-transform: uppercase;
+    margin-bottom: .5rem;
+  }
+  .page-headline {
+    font-size: clamp(22px, 4vw, 34px);
+    font-weight: 600;
+    color: var(--c-white);
+    text-align: center;
+    margin-bottom: .4rem;
+  }
+  .page-sub {
+    font-size: 14px;
+    color: var(--c-comment);
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .comma-accent { color: var(--c-green); }
+
+  /* ── Controls toolbar ── */
+  .toolbar {
+    width: 100%;
+    max-width: 700px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .ctrl-btn {
+    background: var(--gutter);
+    border: 1px solid var(--editor-border);
+    color: var(--c-white);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 500;
+    padding: .45rem .95rem;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background .15s, border-color .15s, transform .1s;
+    letter-spacing: .02em;
+  }
+  .ctrl-btn:hover  { background: #252639; border-color: #3a3d52; }
+  .ctrl-btn:active { transform: scale(.96); }
+  .ctrl-btn.primary {
+    background: rgba(189,147,249,.15);
+    border-color: rgba(189,147,249,.4);
+    color: var(--c-purple);
+  }
+  .ctrl-btn.primary:hover { background: rgba(189,147,249,.25); }
+  .ctrl-btn:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .speed-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    background: var(--gutter);
+    border: 1px solid var(--editor-border);
+    border-radius: 6px;
+    padding: 4px 6px;
+  }
+  .speed-label {
+    font-size: 11px;
+    color: var(--c-comment);
+    letter-spacing: .06em;
+    padding: 0 4px;
+  }
+  .speed-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--c-comment);
+    font-family: var(--font-code);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .speed-btn:hover  { color: var(--c-white); border-color: var(--editor-border); }
+  .speed-btn.active { background: rgba(189,147,249,.18); border-color: rgba(189,147,249,.35); color: var(--c-purple); }
+
+  /* ── Progress dots ── */
+  .progress {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+    align-items: center;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--c-dim);
+    transition: background .3s, transform .3s;
+    cursor: pointer;
+  }
+  .dot:hover { opacity: .8; transform: scale(1.2); }
+  .dot.active { background: var(--c-purple); transform: scale(1.3); }
+  .dot.done   { background: var(--c-green); }
+  .progress-label {
+    font-size: 11px;
+    color: var(--c-comment);
+    margin-left: 4px;
+    font-family: var(--font-code);
+    min-width: 40px;
+  }
+
+  /* ── Editor card ── */
+  .editor-wrap {
+    width: 100%;
+    max-width: 700px;
+    background: var(--editor-bg);
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+  .editor-topbar {
+    background: var(--gutter);
+    padding: .6rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    border-bottom: 1px solid var(--editor-border);
+  }
+  .tb-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .tb-dot:nth-child(1) { background: #ff5f57; }
+  .tb-dot:nth-child(2) { background: #ffbd2e; }
+  .tb-dot:nth-child(3) { background: #28c840; }
+  .tb-filename {
+    font-family: var(--font-code);
+    font-size: 12px;
+    color: var(--c-comment);
+    margin-left: .5rem;
+  }
+  .editor-body {
+    padding: 1.25rem 1.25rem 1.25rem 0;
+    font-family: var(--font-code);
+    font-size: 15px;
+    line-height: 1.85;
+    min-height: 60px;
+  }
+  .code-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0;
+  }
+  .ln {
+    min-width: 48px;
+    text-align: right;
+    padding-right: 16px;
+    color: var(--line-num);
+    font-size: 13px;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .code-content { flex: 1; position: relative; }
+
+  .t-var   { color: var(--c-white); }
+  .t-op    { color: var(--c-pink); }
+  .t-paren { color: var(--c-white); opacity: .7; }
+  .t-str   { color: var(--c-green); }
+  .t-fn    { color: var(--c-blue); }
+  .t-kw    { color: var(--c-purple); }
+  .t-comma { color: var(--c-green); font-weight: 700; display: inline-block; }
+  .t-comment { color: var(--c-comment); font-style: italic; }
+
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--c-purple);
+    vertical-align: text-bottom;
+    margin-left: 1px;
+    animation: blink .75s step-end infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  @keyframes varGlow {
+    0%   { text-shadow: 0 0 0px transparent; }
+    40%  { text-shadow: 0 0 12px var(--c-purple), 0 0 28px rgba(189,147,249,.4); }
+    100% { text-shadow: 0 0 0px transparent; }
+  }
+  .var-glow { animation: varGlow 1.4s ease forwards; }
+
+  /* ── Output ── */
+  .output-wrap {
+    width: 100%;
+    max-width: 700px;
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height .5s cubic-bezier(.4,0,.2,1), opacity .4s;
+    opacity: 0;
+    margin-bottom: 1.25rem;
+  }
+  .output-wrap.show { max-height: 300px; opacity: 1; }
+  .output-inner {
+    background: var(--output-bg);
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+  }
+  .output-label {
+    font-family: var(--font-code);
+    font-size: 11px;
+    color: var(--c-comment);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: .5rem;
+  }
+  .output-text { font-family: var(--font-code); font-size: 15px; color: var(--c-white); }
+  .out-type-str   { color: var(--c-amber); font-weight: 700; }
+  .out-type-tuple { color: var(--c-green); font-weight: 700; }
+
+  /* ── Explanation ── */
+  .explain-wrap {
+    width: 100%;
+    max-width: 700px;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height .5s .1s cubic-bezier(.4,0,.2,1), opacity .4s .1s;
+    margin-bottom: 1.25rem;
+  }
+  .explain-wrap.show { max-height: 120px; opacity: 1; }
+  .explain-inner {
+    border-left: 3px solid var(--c-purple);
+    padding: .65rem 1rem;
+    font-size: 13.5px;
+    color: #aab2c8;
+    line-height: 1.6;
+    background: rgba(68,71,90,.15);
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .explain-inner.green { border-left-color: var(--c-green); }
+
+  /* ── Comma bounce ── */
+  @keyframes commaBounce {
+    0%   { transform: scale(0) translateY(-20px); opacity: 0; }
+    50%  { transform: scale(1.45) translateY(4px); opacity: 1; }
+    68%  { transform: scale(.88) translateY(-2px); }
+    82%  { transform: scale(1.15) translateY(2px); }
+    92%  { transform: scale(.97) translateY(0); }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .comma-animate {
+    animation: commaBounce .75s cubic-bezier(.34,1.56,.64,1) forwards;
+    display: inline-block;
+    transform-origin: center bottom;
+  }
+  @keyframes commaGlow {
+    0%,100% { text-shadow: 0 0 0 transparent; }
+    50% { text-shadow: 0 0 14px var(--c-green), 0 0 30px rgba(80,250,123,.35); }
+  }
+  .comma-glow { animation: commaGlow 1.2s ease 0s infinite; }
+
+  /* ── Memory diagram ── */
+  .mem-wrap {
+    width: 100%;
+    max-width: 700px;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height .5s cubic-bezier(.4,0,.2,1), opacity .4s;
+    margin-bottom: 1.5rem;
+  }
+  .mem-wrap.show { max-height: 200px; opacity: 1; }
+  .mem-inner {
+    background: rgba(26,27,38,.7);
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius);
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .mem-label { font-size: 12px; color: var(--c-comment); margin-bottom: 8px; }
+  .mem-box {
+    background: var(--gutter);
+    border: 1.5px solid var(--c-purple);
+    border-radius: 6px;
+    padding: .4rem .9rem;
+    font-family: var(--font-code);
+    font-size: 14px;
+    color: var(--c-purple);
+    font-weight: 500;
+  }
+  .mem-arrow { font-size: 20px; color: var(--c-comment); flex-shrink: 0; }
+  .mem-tuple { display: flex; align-items: center; gap: 4px; font-family: var(--font-code); font-size: 14px; }
+  .mem-bracket { color: var(--c-white); opacity: .6; font-size: 20px; }
+  .mem-slot {
+    background: rgba(80,250,123,.1);
+    border: 1.5px solid var(--c-green);
+    border-radius: 5px;
+    padding: .35rem .75rem;
+    color: var(--c-green);
+    font-weight: 500;
+  }
+  .mem-tcomma { color: var(--c-green); font-weight: 700; margin: 0 2px; }
+
+  /* ── Summary ── */
+  .summary-wrap {
+    width: 100%;
+    max-width: 700px;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height .6s cubic-bezier(.4,0,.2,1), opacity .5s;
+    margin-bottom: 1.5rem;
+  }
+  .summary-wrap.show { max-height: 300px; opacity: 1; }
+  .summary-inner {
+    background: var(--editor-bg);
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .summary-title {
+    background: var(--gutter);
+    border-bottom: 1px solid var(--editor-border);
+    padding: .65rem 1.25rem;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--c-comment);
+  }
+  table.sum { width: 100%; border-collapse: collapse; font-family: var(--font-code); font-size: 13.5px; }
+  table.sum th {
+    padding: .65rem 1.25rem;
+    text-align: left;
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--c-comment);
+    border-bottom: 1px solid var(--editor-border);
+    font-weight: 500;
+    font-family: var(--font-ui);
+  }
+  table.sum td { padding: .75rem 1.25rem; border-bottom: 1px solid rgba(42,45,62,.5); vertical-align: middle; }
+  table.sum tr:last-child td { border-bottom: none; }
+  table.sum tr:hover td { background: rgba(68,71,90,.12); }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; font-family: var(--font-ui); }
+  .badge-str   { background: rgba(255,184,108,.12); color: var(--c-amber); border: 1px solid rgba(255,184,108,.3); }
+  .badge-tuple { background: rgba(80,250,123,.1); color: var(--c-green); border: 1px solid rgba(80,250,123,.25); }
+  .why-text { color: var(--c-comment); font-family: var(--font-ui); font-size: 13px; }
+
+  /* ── Scene badge ── */
+  .scene-badge {
+    width: 100%;
+    max-width: 700px;
+    margin-bottom: .75rem;
+    opacity: 0;
+    transform: translateX(-8px);
+    transition: opacity .3s, transform .3s;
+  }
+  .scene-badge.show { opacity: 1; transform: translateX(0); }
+  .scene-badge-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--c-comment);
+    font-family: var(--font-ui);
+  }
+  .scene-num-badge {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--c-purple);
+    color: #1a1b26;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Next-step prompt (manual mode) ── */
+  .next-prompt {
+    width: 100%;
+    max-width: 700px;
+    display: none;
+    margin-bottom: 1rem;
+  }
+  .next-prompt.visible { display: flex; align-items: center; gap: 10px; }
+  .next-hint {
+    font-size: 12px;
+    color: var(--c-comment);
+    font-family: var(--font-ui);
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<p class="page-title">Python · Data Types</p>
+<h1 class="page-headline">Tuples <span class="comma-accent">&amp;</span> the Comma That Changes Everything</h1>
+<p class="page-sub">Watch how a single comma transforms a string into a tuple</p>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <button class="ctrl-btn primary" id="prevBtn" onclick="prevScene()" disabled>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Prev
+  </button>
+  <button class="ctrl-btn primary" id="nextBtn" onclick="nextScene()">
+    Next
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>
+  <button class="ctrl-btn" id="autoBtn" onclick="toggleAuto()">
+    <svg id="autoIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    <span id="autoLabel">Auto-play</span>
+  </button>
+  <button class="ctrl-btn" onclick="replayAll()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-5.23"/></svg>
+    Restart
+  </button>
+
+  <div class="speed-group">
+    <span class="speed-label">Speed</span>
+    <button class="speed-btn" onclick="setSpeed(0.5)">0.5×</button>
+    <button class="speed-btn active" id="sp1" onclick="setSpeed(1)">1×</button>
+    <button class="speed-btn" onclick="setSpeed(2)">2×</button>
+    <button class="speed-btn" onclick="setSpeed(3)">3×</button>
+  </div>
+</div>
+
+<!-- Progress -->
+<div class="progress">
+  <div class="dot active" id="dot0" onclick="jumpTo(0)" title="Scene 1"></div>
+  <div class="dot" id="dot1" onclick="jumpTo(1)" title="Scene 2"></div>
+  <div class="dot" id="dot2" onclick="jumpTo(2)" title="Scene 3"></div>
+  <div class="dot" id="dot3" onclick="jumpTo(3)" title="Scene 4"></div>
+  <span class="progress-label" id="progressLabel">1 / 4</span>
+</div>
+
+<!-- Scene badge -->
+<div class="scene-badge" id="sceneBadge">
+  <div class="scene-badge-inner">
+    <div class="scene-num-badge" id="sceneNum">1</div>
+    <span id="sceneText">Writing the assignment</span>
+  </div>
+</div>
+
+<!-- Editor 1 -->
+<div class="editor-wrap" id="editor1">
+  <div class="editor-topbar">
+    <div class="tb-dot"></div><div class="tb-dot"></div><div class="tb-dot"></div>
+    <span class="tb-filename">tuple_demo.py</span>
+  </div>
+  <div class="editor-body">
+    <div class="code-line">
+      <span class="ln">1</span>
+      <span class="code-content" id="line1"></span>
+    </div>
+    <div class="code-line" id="line2Row" style="opacity:0;transition:opacity .3s;">
+      <span class="ln">2</span>
+      <span class="code-content" id="line2"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Output 1 -->
+<div class="output-wrap" id="output1">
+  <div class="output-inner">
+    <div class="output-label">▶ output</div>
+    <div class="output-text">&lt;class <span class="out-type-str">'str'</span>&gt;</div>
+  </div>
+</div>
+
+<!-- Explanation 1 -->
+<div class="explain-wrap" id="explain1">
+  <div class="explain-inner">
+    Parentheses alone do <strong style="color:var(--c-amber)">NOT</strong> make a tuple — Python treats <code style="color:var(--c-white);background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px">('A')</code> as a grouping operator, just like in math. The result is a plain <span style="color:var(--c-amber);font-weight:600">string</span>.
+  </div>
+</div>
+
+<!-- Editor 2 -->
+<div class="editor-wrap hidden" id="editor2">
+  <div class="editor-topbar">
+    <div class="tb-dot"></div><div class="tb-dot"></div><div class="tb-dot"></div>
+    <span class="tb-filename">tuple_demo.py</span>
+  </div>
+  <div class="editor-body">
+    <div class="code-line">
+      <span class="ln">1</span>
+      <span class="code-content" id="line3"></span>
+    </div>
+    <div class="code-line" id="line4Row" style="opacity:0;transition:opacity .3s;">
+      <span class="ln">2</span>
+      <span class="code-content" id="line4"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Output 2 -->
+<div class="output-wrap" id="output2">
+  <div class="output-inner">
+    <div class="output-label">▶ output</div>
+    <div class="output-text">&lt;class <span class="out-type-tuple">'tuple'</span>&gt;</div>
+  </div>
+</div>
+
+<!-- Explanation 2 -->
+<div class="explain-wrap" id="explain2">
+  <div class="explain-inner green">
+    The <strong style="color:var(--c-green)">comma</strong> is the signal — it tells Python this is a 1-element tuple, not grouping. You can even write <code style="color:var(--c-white);background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px">t = 'A',</code> without parentheses — it's still a <span style="color:var(--c-green);font-weight:600">tuple</span>.
+  </div>
+</div>
+
+<!-- Memory diagram -->
+<div class="mem-wrap" id="memDiagram">
+  <div class="mem-inner">
+    <div>
+      <div class="mem-label">variable</div>
+      <div class="mem-box">t</div>
+    </div>
+    <div class="mem-arrow">→</div>
+    <div>
+      <div class="mem-label">memory</div>
+      <div class="mem-tuple">
+        <span class="mem-bracket">(</span>
+        <span class="mem-slot">'A'</span>
+        <span class="mem-tcomma">,</span>
+        <span class="mem-bracket">)</span>
+      </div>
+    </div>
+    <div style="margin-left:auto;text-align:right;">
+      <div class="mem-label">type</div>
+      <span class="badge badge-tuple">tuple</span>
+    </div>
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="summary-wrap" id="summaryWrap">
+  <div class="summary-inner">
+    <div class="summary-title">Summary</div>
+    <table class="sum">
+      <thead>
+        <tr><th>Expression</th><th>Result</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code style="color:var(--c-white)">t = <span class="t-paren">(</span><span class="t-str">'A'</span><span class="t-paren">)</span></code></td>
+          <td><span class="badge badge-str">str</span></td>
+          <td><span class="why-text">Parentheses = grouping only</span></td>
+        </tr>
+        <tr>
+          <td><code style="color:var(--c-white)">t = <span class="t-paren">(</span><span class="t-str">'A'</span><span class="t-comma">,</span><span class="t-paren">)</span></code></td>
+          <td><span class="badge badge-tuple">tuple</span></td>
+          <td><span class="why-text">Comma = tuple signal</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  /* ── Speed control ── */
+  let speedMult = 1;
+  function setSpeed(s) {
+    speedMult = s;
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+    const map = {0.5:'sp05', 1:'sp1', 2:'sp2', 3:'sp3'};
+    const labels = ['0.5×','1×','2×','3×'];
+    const speeds = [0.5,1,2,3];
+    document.querySelectorAll('.speed-btn').forEach((b,i) => {
+      if(speeds[i] === s) b.classList.add('active');
+    });
+  }
+  /* patch speed buttons after parse */
+
+  function wait(ms) {
+    return new Promise(r => {
+      const id = setTimeout(r, ms / speedMult);
+      waitIds.push(id);
+    });
+  }
+
+  let waitIds = [];
+  function cancelWaits() {
+    waitIds.forEach(clearTimeout);
+    waitIds = [];
+  }
+
+  /* ── Mode ── */
+  let autoPlay = false;
+  let currentScene = -1;
+  let animating = false;
+  let resolveNext = null;
+
+  function toggleAuto() {
+    autoPlay = !autoPlay;
+    $('autoIcon').innerHTML = autoPlay
+      ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'
+      : '<polygon points="5 3 19 12 5 21 5 3"/>';
+    $('autoLabel').textContent = autoPlay ? 'Pause' : 'Auto-play';
+    if(autoPlay && !animating) {
+      runFromCurrent();
+    }
+  }
+
+  /* ── Navigation ── */
+  function updateNav() {
+    $('prevBtn').disabled = currentScene <= 0;
+    $('nextBtn').disabled = currentScene >= 3;
+    $('progressLabel').textContent = (currentScene+1) + ' / 4';
+    for(let i=0;i<4;i++){
+      $('dot'+i).classList.remove('active','done');
+      if(i < currentScene) $('dot'+i).classList.add('done');
+      if(i === currentScene) $('dot'+i).classList.add('active');
+    }
+    const labels = [
+      'Writing the assignment',
+      'Checking the type — surprise!',
+      'The comma arrives',
+      'Checking the type — success!'
+    ];
+    $('sceneNum').textContent = currentScene+1;
+    $('sceneText').textContent = labels[currentScene] || '';
+    $('sceneBadge').classList.add('show');
+  }
+
+  async function nextScene() {
+    if(animating || currentScene >= 3) return;
+    currentScene++;
+    updateNav();
+    await runScene(currentScene);
+    if(autoPlay && currentScene < 3) {
+      runFromCurrent();
+    }
+  }
+
+  async function prevScene() {
+    if(animating || currentScene <= 0) return;
+    currentScene--;
+    hardResetToScene(currentScene);
+    updateNav();
+    await runScene(currentScene);
+  }
+
+  async function jumpTo(n) {
+    if(animating) return;
+    if(n === currentScene) return;
+    cancelWaits();
+    hardResetToScene(n);
+    currentScene = n;
+    updateNav();
+    await runScene(n);
+  }
+
+  /* ── Typewriter ── */
+  async function typeSegs(container, segs, perChar) {
+    container.innerHTML = '';
+    let varSpan = null;
+    for(const seg of segs) {
+      const span = document.createElement('span');
+      if(seg.cls) span.className = seg.cls;
+      container.appendChild(span);
+      if(seg.cls === 't-var') varSpan = span;
+      const chars = [...seg.text];
+      let built = '';
+      for(const ch of chars) {
+        built += ch;
+        span.textContent = built;
+        await wait(perChar + Math.random()*10);
+      }
+    }
+    return varSpan;
+  }
+
+  const BASE_CHAR = 65; /* ms per character at 1× */
+
+  /* ── Scene runners ── */
+  async function runScene(n) {
+    animating = true;
+    $('nextBtn').disabled = true;
+    $('prevBtn').disabled = true;
+
+    if(n === 0) await doScene1();
+    if(n === 1) await doScene2();
+    if(n === 2) await doScene3();
+    if(n === 3) await doScene4();
+
+    animating = false;
+    updateNav();
+  }
+
+  async function doScene1() {
+    const c = $('line1');
+    const segs = [
+      {cls:'t-var',  text:'t'},
+      {cls:null,     text:' '},
+      {cls:'t-op',   text:'='},
+      {cls:null,     text:' '},
+      {cls:'t-paren',text:'('},
+      {cls:'t-str',  text:"'A'"},
+      {cls:'t-paren',text:')'},
+    ];
+    const varSpan = await typeSegs(c, segs, BASE_CHAR);
+    const cur = document.createElement('span'); cur.className='cursor'; c.appendChild(cur);
+    if(varSpan) varSpan.classList.add('var-glow');
+    await wait(autoPlay ? 1400 : 600);
+    cur.remove();
+  }
+
+  async function doScene2() {
+    const row = $('line2Row'), c = $('line2');
+    row.style.opacity = '1';
+    const segs = [
+      {cls:'t-fn',   text:'print'},
+      {cls:'t-paren',text:'('},
+      {cls:'t-fn',   text:'type'},
+      {cls:'t-paren',text:'('},
+      {cls:'t-var',  text:'t'},
+      {cls:'t-paren',text:'))'},
+    ];
+    await typeSegs(c, segs, BASE_CHAR);
+    const cur = document.createElement('span'); cur.className='cursor'; c.appendChild(cur);
+    await wait(350);
+    cur.remove();
+    $('output1').classList.add('show');
+    await wait(500);
+    $('explain1').classList.add('show');
+    await wait(autoPlay ? 2000 : 400);
+  }
+
+  async function doScene3() {
+    $('editor1').classList.add('hidden');
+    $('output1').classList.remove('show');
+    $('explain1').classList.remove('show');
+    await wait(150);
+    $('editor2').classList.remove('hidden');
+
+    const c = $('line3');
+    const segs1 = [
+      {cls:'t-var',  text:'t'},
+      {cls:null,     text:' '},
+      {cls:'t-op',   text:'='},
+      {cls:null,     text:' '},
+      {cls:'t-paren',text:'('},
+      {cls:'t-str',  text:"'A'"},
+    ];
+    await typeSegs(c, segs1, BASE_CHAR);
+
+    const preCur = document.createElement('span'); preCur.className='cursor'; c.appendChild(preCur);
+    await wait(autoPlay ? 500 : 250);
+    preCur.remove();
+
+    const commaSpan = document.createElement('span');
+    commaSpan.className = 't-comma comma-animate';
+    commaSpan.textContent = ',';
+    c.appendChild(commaSpan);
+    await wait(200);
+    commaSpan.classList.add('comma-glow');
+
+    await wait(300);
+    const closeSpan = document.createElement('span');
+    closeSpan.className = 't-paren';
+    closeSpan.textContent = ')';
+    c.appendChild(closeSpan);
+    await wait(autoPlay ? 800 : 300);
+  }
+
+  async function doScene4() {
+    const row = $('line4Row'), c = $('line4');
+    row.style.opacity = '1';
+    const segs = [
+      {cls:'t-fn',   text:'print'},
+      {cls:'t-paren',text:'('},
+      {cls:'t-fn',   text:'type'},
+      {cls:'t-paren',text:'('},
+      {cls:'t-var',  text:'t'},
+      {cls:'t-paren',text:'))'},
+    ];
+    await typeSegs(c, segs, BASE_CHAR);
+    const cur = document.createElement('span'); cur.className='cursor'; c.appendChild(cur);
+    await wait(350);
+    cur.remove();
+
+    $('output2').classList.add('show');
+    await wait(500);
+    $('explain2').classList.add('show');
+    await wait(autoPlay ? 700 : 300);
+    $('memDiagram').classList.add('show');
+    await wait(autoPlay ? 1400 : 500);
+    $('summaryWrap').classList.add('show');
+
+    for(let i=0;i<4;i++){
+      $('dot'+i).classList.remove('active');
+      $('dot'+i).classList.add('done');
+    }
+    $('progressLabel').textContent = '4 / 4';
+  }
+
+  async function runFromCurrent() {
+    while(autoPlay && currentScene < 3) {
+      currentScene++;
+      updateNav();
+      await runScene(currentScene);
+      await wait(300);
+    }
+    if(currentScene >= 3) {
+      autoPlay = false;
+      $('autoIcon').innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+      $('autoLabel').textContent = 'Auto-play';
+    }
+  }
+
+  /* ── Hard reset to a specific scene state ── */
+  function hardResetToScene(n) {
+    cancelWaits();
+
+    /* always restore editors */
+    $('editor1').classList.remove('hidden');
+    $('editor2').classList.add('hidden');
+
+    /* clear all lines */
+    ['line1','line2','line3','line4'].forEach(id => { $(id).innerHTML = ''; });
+    $('line2Row').style.opacity = '0';
+    $('line4Row').style.opacity = '0';
+
+    /* hide all reveal panels */
+    ['output1','output2','explain1','explain2','memDiagram','summaryWrap'].forEach(id => {
+      $(id).classList.remove('show');
+    });
+
+    /* restore state for scenes already "passed" */
+    if(n >= 1) {
+      /* scene 1 was done: show line1 complete */
+      renderStatic($('line1'), [
+        {cls:'t-var',text:'t'},{cls:null,text:' '},{cls:'t-op',text:'='},
+        {cls:null,text:' '},{cls:'t-paren',text:'('},{cls:'t-str',text:"'A'"},{cls:'t-paren',text:')'}
+      ]);
+    }
+    if(n >= 2) {
+      /* scene 2 done */
+      $('line2Row').style.opacity = '1';
+      renderStatic($('line2'), [
+        {cls:'t-fn',text:'print'},{cls:'t-paren',text:'('},{cls:'t-fn',text:'type'},
+        {cls:'t-paren',text:'('},{cls:'t-var',text:'t'},{cls:'t-paren',text:'))'}
+      ]);
+      $('output1').classList.add('show');
+      $('explain1').classList.add('show');
+    }
+    if(n >= 3) {
+      /* scene 3 done — switch to editor2 */
+      $('editor1').classList.add('hidden');
+      $('output1').classList.remove('show');
+      $('explain1').classList.remove('show');
+      $('editor2').classList.remove('hidden');
+      const c3 = $('line3');
+      renderStatic(c3, [
+        {cls:'t-var',text:'t'},{cls:null,text:' '},{cls:'t-op',text:'='},
+        {cls:null,text:' '},{cls:'t-paren',text:'('},{cls:'t-str',text:"'A'"}
+      ]);
+      const cs = document.createElement('span');
+      cs.className = 't-comma comma-glow'; cs.textContent = ','; cs.style.display='inline-block';
+      c3.appendChild(cs);
+      const cp = document.createElement('span');
+      cp.className = 't-paren'; cp.textContent = ')';
+      c3.appendChild(cp);
+    }
+  }
+
+  function renderStatic(container, segs) {
+    container.innerHTML = '';
+    segs.forEach(seg => {
+      const span = document.createElement('span');
+      if(seg.cls) span.className = seg.cls;
+      span.textContent = seg.text;
+      container.appendChild(span);
+    });
+  }
+
+  /* ── Full restart ── */
+  function replayAll() {
+    cancelWaits();
+    autoPlay = false;
+    $('autoIcon').innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+    $('autoLabel').textContent = 'Auto-play';
+    animating = false;
+
+    hardResetToScene(-1);
+    $('sceneBadge').classList.remove('show');
+    for(let i=0;i<4;i++){ $('dot'+i).classList.remove('active','done'); }
+    $('dot0').classList.add('active');
+    $('progressLabel').textContent = '1 / 4';
+    currentScene = -1;
+  }
+
+  /* wire speed buttons properly */
+  document.querySelectorAll('.speed-btn').forEach((b, i) => {
+    const speeds = [0.5, 1, 2, 3];
+    b.id = ['sp05','sp1','sp2','sp3'][i];
+    b.onclick = () => {
+      speedMult = speeds[i];
+      document.querySelectorAll('.speed-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+    };
+  });
+
+  /* ── Init: start at scene 0 in manual mode ── */
+  currentScene = 0;
+  updateNav();
+  runScene(0);
+</script>
+</body>
+</html>
