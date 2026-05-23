@@ -1,0 +1,360 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a1a2e;overflow:hidden;width:100%;height:520px;position:relative;font-family:var(--font-sans)}
+
+#cinema{width:100%;height:480px;position:relative;overflow:hidden}
+canvas#bg{position:absolute;inset:0;width:100%;height:100%}
+
+.scene{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .5s}
+.scene.active{opacity:1;pointer-events:all}
+
+.speech{
+  position:absolute;background:#fff;border-radius:16px 16px 16px 4px;
+  padding:8px 13px;font-size:12px;font-weight:500;color:#1a1a2e;
+  max-width:160px;line-height:1.4;
+  animation:popBubble .35s cubic-bezier(.34,1.56,.64,1) forwards;
+  transform:scale(0);transform-origin:bottom left;
+}
+.speech.right{border-radius:16px 16px 4px 16px;transform-origin:bottom right}
+.speech::after{content:'';position:absolute;bottom:-8px;left:12px;
+  border:8px solid transparent;border-top-color:#fff;border-bottom:0;border-left:0}
+.speech.right::after{left:auto;right:12px}
+
+@keyframes popBubble{to{transform:scale(1)}}
+@keyframes walkR{0%{transform:scaleX(1) translateX(0)}100%{transform:scaleX(1) translateX(var(--tx,80px))}}
+@keyframes walkL{0%{transform:scaleX(-1) translateX(0)}100%{transform:scaleX(-1) translateX(var(--tx,-80px))}}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+@keyframes floatUp{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-40px);opacity:0}}
+@keyframes zoomIn{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes slideDown{from{transform:translateY(-30px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes typeOn{from{width:0}to{width:100%}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes starPop{0%{transform:scale(0) rotate(-30deg);opacity:0}60%{transform:scale(1.3) rotate(5deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
+
+.char{position:absolute;width:52px;cursor:pointer}
+.char svg{width:100%;height:auto}
+
+.memory-box{
+  position:absolute;border-radius:12px;padding:10px 14px;text-align:center;
+  font-size:12px;font-weight:600;border:2px solid;
+  animation:zoomIn .5s cubic-bezier(.34,1.4,.64,1) forwards;
+  transform:scale(.5);opacity:0;
+}
+
+.floating-plus{
+  position:absolute;font-size:18px;font-weight:700;
+  animation:floatUp .8s ease forwards;
+  pointer-events:none;
+}
+
+.code-ticker{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(10,10,30,.92);border-top:1px solid #333;
+  padding:6px 14px;font-family:var(--font-mono);font-size:11px;color:#aaa;
+  overflow:hidden;white-space:nowrap;
+}
+.code-ticker .hi{color:#facc15}
+.code-ticker .fn{color:#a78bfa}
+.code-ticker .st{color:#34d399}
+.code-ticker .op{color:#f87171}
+
+.scene-label{
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.15);
+  border-radius:20px;padding:3px 14px;font-size:11px;color:#ccc;letter-spacing:.08em;
+  animation:slideDown .4s ease forwards;
+}
+
+.title-card{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(10,8,25,.96);
+}
+.title-big{font-size:26px;font-weight:700;color:#facc15;text-align:center;letter-spacing:.02em;animation:zoomIn .6s .2s ease both}
+.title-sub{font-size:13px;color:#888;margin-top:8px;animation:slideDown .5s .6s ease both;opacity:0}
+.title-sub.on{opacity:1}
+
+.hud{
+  position:absolute;top:10px;right:12px;display:flex;gap:6px;align-items:center;
+}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:#333;transition:all .3s}
+.hud-dot.on{background:#facc15}
+.hud-dot.done{background:#34d399}
+
+.arrow-anim{
+  position:absolute;pointer-events:none;
+  animation:floatUp .6s ease forwards;
+  font-size:22px;
+}
+
+.star{position:absolute;color:#facc15;font-size:20px;pointer-events:none;animation:starPop .5s ease forwards;transform:scale(0)}
+
+.controls-bar{
+  position:absolute;bottom:0;left:0;right:0;height:44px;
+  background:#0f0e1a;border-top:1px solid #2a2a3a;
+  display:flex;align-items:center;justify-content:space-between;padding:0 16px;
+}
+.narr-text{font-size:11.5px;color:#aaa;max-width:460px;line-height:1.4}
+.narr-text b{color:#facc15}
+.cbtn{
+  background:none;border:1px solid #333;color:#ccc;border-radius:8px;
+  padding:5px 14px;font-size:12px;cursor:pointer;font-family:var(--font-sans);
+  transition:all .2s;white-space:nowrap;
+}
+.cbtn:hover{border-color:#facc15;color:#facc15}
+.cbtn.go{background:#facc15;color:#0f0e1a;border-color:#facc15;font-weight:600}
+.cbtn:disabled{opacity:.35;cursor:not-allowed}
+</style>
+
+<div id="cinema">
+<canvas id="bg"></canvas>
+
+<div class="hud" id="hud"></div>
+
+<div class="scene active" id="sc0">
+  <div class="title-card">
+    <div style="font-size:36px;animation:spin 3s linear infinite;display:inline-block;margin-bottom:12px">🐍</div>
+    <div class="title-big">String Interning</div>
+    <div style="font-size:13px;color:#666;margin-top:6px;animation:slideDown .5s .4s ease both;opacity:0" id="ts1">A Python Memory Adventure</div>
+    <div style="margin-top:24px;display:flex;gap:12px;animation:slideDown .4s .9s ease both;opacity:0" id="ts2">
+      <div style="background:#1a1040;border:1px solid #534AB7;border-radius:10px;padding:8px 16px;text-align:center">
+        <div style="font-size:20px">👦</div><div style="font-size:11px;color:#AFA9EC;margin-top:2px">Var1</div>
+      </div>
+      <div style="background:#1a1040;border:1px solid #993C1D;border-radius:10px;padding:8px 16px;text-align:center">
+        <div style="font-size:20px">👧</div><div style="font-size:11px;color:#F0997B;margin-top:2px">Var2</div>
+      </div>
+      <div style="background:#1a1040;border:1px solid #0F6E56;border-radius:10px;padding:8px 16px;text-align:center">
+        <div style="font-size:20px">🏛️</div><div style="font-size:11px;color:#5DCAA5;margin-top:2px">Memory</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="sc1">
+  <div class="scene-label">Scene 1 — Meet the variables</div>
+  <div id="char1" class="char" style="left:80px;bottom:110px;animation:bounce 1s .5s ease-in-out infinite">
+    <svg viewBox="0 0 52 80"><circle cx="26" cy="14" r="12" fill="#534AB7"/><text x="26" y="19" text-anchor="middle" font-size="14" fill="#fff">👦</text><rect x="10" y="28" width="32" height="28" rx="8" fill="#534AB7"/><text x="26" y="47" text-anchor="middle" font-size="9" font-weight="600" fill="#EEEDFE">VAR1</text><rect x="18" y="58" width="8" height="18" rx="4" fill="#3C3489"/><rect x="26" y="58" width="8" height="18" rx="4" fill="#3C3489"/></svg>
+  </div>
+  <div id="char2" class="char" style="right:80px;bottom:110px;transform:scaleX(-1);animation:bounce 1s .8s ease-in-out infinite">
+    <svg viewBox="0 0 52 80"><circle cx="26" cy="14" r="12" fill="#993C1D"/><text x="26" y="19" text-anchor="middle" font-size="14" fill="#fff">👧</text><rect x="10" y="28" width="32" height="28" rx="8" fill="#993C1D"/><text x="26" y="47" text-anchor="middle" font-size="9" font-weight="600" fill="#FAECE7">VAR2</text><rect x="18" y="58" width="8" height="18" rx="4" fill="#712B13"/><rect x="26" y="58" width="8" height="18" rx="4" fill="#712B13"/></svg>
+  </div>
+  <div class="speech" style="left:130px;bottom:180px;animation-delay:.6s">Hi! I hold<br><b>'Important'</b></div>
+  <div class="speech right" style="right:130px;bottom:180px;animation-delay:1s">Me too! Same string!</div>
+  <div style="position:absolute;bottom:100px;left:50%;transform:translateX(-50%);font-size:28px;animation:bounce .8s 1.5s ease-in-out infinite">❓</div>
+  <div class="code-ticker"><span class="hi">variable1</span> = <span class="st">'Important'</span> &nbsp;|&nbsp; <span class="hi">variable2</span> = <span class="st">'Important'</span></div>
+</div>
+
+<div class="scene" id="sc2">
+  <div class="scene-label">Scene 2 — The memory palace</div>
+  <div class="char" style="left:60px;bottom:120px;animation:bounce 1.2s ease-in-out infinite">
+    <svg viewBox="0 0 52 80"><circle cx="26" cy="14" r="12" fill="#534AB7"/><text x="26" y="19" text-anchor="middle" font-size="14" fill="#fff">👦</text><rect x="10" y="28" width="32" height="28" rx="8" fill="#534AB7"/><text x="26" y="47" text-anchor="middle" font-size="9" font-weight="600" fill="#EEEDFE">VAR1</text><rect x="18" y="58" width="8" height="18" rx="4" fill="#3C3489"/><rect x="26" y="58" width="8" height="18" rx="4" fill="#3C3489"/></svg>
+  </div>
+  <div class="char" style="right:60px;bottom:120px;transform:scaleX(-1);animation:bounce 1.2s .3s ease-in-out infinite">
+    <svg viewBox="0 0 52 80"><circle cx="26" cy="14" r="12" fill="#993C1D"/><text x="26" y="19" text-anchor="middle" font-size="14" fill="#fff">👧</text><rect x="10" y="28" width="32" height="28" rx="8" fill="#993C1D"/><text x="26" y="47" text-anchor="middle" font-size="9" font-weight="600" fill="#FAECE7">VAR2</text><rect x="18" y="58" width="8" height="18" rx="4" fill="#712B13"/><rect x="26" y="58" width="8" height="18" rx="4" fill="#712B13"/></svg>
+  </div>
+  <div id="mempal" style="position:absolute;top:60px;left:50%;transform:translateX(-50%);background:#0d2e22;border:2px solid #0F6E56;border-radius:16px;padding:14px 28px;text-align:center;animation:zoomIn .6s .2s ease both;opacity:0">
+    <div style="font-size:11px;color:#5DCAA5;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Memory Palace</div>
+    <div style="font-size:18px;font-weight:700;color:#9FE1CB;font-family:var(--font-mono)">'Important'</div>
+    <div style="font-size:10px;color:#085041;margin-top:3px;font-family:var(--font-mono)">0x7f8a3c1d4e60</div>
+    <div style="font-size:20px;margin-top:4px;animation:pulse 1.5s ease-in-out infinite">🏛️</div>
+  </div>
+  <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" id="arrows2">
+    <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#5DCAA5" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+    <path id="a1" d="" stroke="#5DCAA5" stroke-width="2" fill="none" stroke-dasharray="6 3" marker-end="url(#ah)" opacity="0"/>
+    <path id="a2" d="" stroke="#5DCAA5" stroke-width="2" fill="none" stroke-dasharray="6 3" marker-end="url(#ah)" opacity="0"/>
+  </svg>
+  <div class="speech" style="left:110px;bottom:195px;animation-delay:.8s">We both point<br>to the SAME block!</div>
+  <div class="speech right" style="right:110px;bottom:195px;animation-delay:1.2s">Python is so<br>efficient! 🎉</div>
+  <div class="code-ticker"><span class="fn">print</span>(<span class="fn">id</span>(<span class="hi">variable1</span>)) → <span class="st">140234567890</span> &nbsp;|&nbsp; <span class="fn">print</span>(<span class="fn">id</span>(<span class="hi">variable2</span>)) → <span class="st">140234567890</span> ✓ same!</div>
+</div>
+
+<div class="scene" id="sc3">
+  <div class="scene-label">Scene 3 — The ID reveal</div>
+  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding-top:30px">
+    <div style="background:#0a0a1a;border:1px solid #2a2a3a;border-radius:12px;padding:14px 22px;font-family:var(--font-mono);font-size:13px;animation:slideDown .4s ease both">
+      <div style="color:#666;margin-bottom:8px;font-size:10px;letter-spacing:.1em">TERMINAL OUTPUT</div>
+      <div style="color:#aaa">$ python3 intern.py</div>
+      <div style="animation:slideDown .3s .4s ease both;opacity:0" id="tid1"><span style="color:#34d399">140234567890</span> <span style="color:#555;font-size:10px">← variable1</span></div>
+      <div style="animation:slideDown .3s .7s ease both;opacity:0" id="tid2"><span style="color:#34d399">140234567890</span> <span style="color:#555;font-size:10px">← variable2</span></div>
+      <div style="animation:slideDown .3s 1s ease both;opacity:0" id="tid3"><span style="color:#a78bfa">variable1 <b>is</b> variable2</span> → <span style="color:#34d399;font-weight:700">True</span> 🎊</div>
+    </div>
+    <div style="display:flex;gap:16px;animation:slideDown .4s .4s ease both;opacity:0" id="idchars">
+      <div style="text-align:center">
+        <div style="font-size:28px;animation:bounce .9s ease-in-out infinite">👦</div>
+        <div style="font-size:10px;color:#AFA9EC;margin-top:4px">VAR1</div>
+        <div style="font-size:11px;font-family:var(--font-mono);color:#34d399;margin-top:2px">…567890</div>
+      </div>
+      <div style="font-size:28px;display:flex;align-items:center;animation:pulse 1s ease-in-out infinite">🔗</div>
+      <div style="background:#0d2e22;border:1px solid #0F6E56;border-radius:10px;padding:8px 14px;text-align:center;animation:pulse 1.5s ease-in-out infinite">
+        <div style="font-size:20px">🏛️</div>
+        <div style="font-size:10px;color:#5DCAA5;font-family:var(--font-mono)">'Important'</div>
+      </div>
+      <div style="font-size:28px;display:flex;align-items:center;animation:pulse 1s .3s ease-in-out infinite">🔗</div>
+      <div style="text-align:center">
+        <div style="font-size:28px;animation:bounce .9s .3s ease-in-out infinite">👧</div>
+        <div style="font-size:10px;color:#F0997B;margin-top:4px">VAR2</div>
+        <div style="font-size:11px;font-family:var(--font-mono);color:#34d399;margin-top:2px">…567890</div>
+      </div>
+    </div>
+    <div id="stars3" style="display:flex;gap:8px;animation:zoomIn .5s 1.2s ease both;opacity:0">
+      <span style="font-size:22px">⭐</span><span style="font-size:22px">⭐</span><span style="font-size:22px">⭐</span>
+    </div>
+  </div>
+  <div class="code-ticker"><span class="hi">variable1</span> <span class="op">is</span> <span class="hi">variable2</span> → <span class="st">True</span> &nbsp;|&nbsp; <span class="fn">id</span>(<span class="hi">v1</span>) == <span class="fn">id</span>(<span class="hi">v2</span>) → <span class="st">True</span> — string interning!</div>
+</div>
+
+<div class="scene" id="sc4">
+  <div class="scene-label">Scene 4 — The space disaster</div>
+  <div class="char" id="c4a" style="left:50px;bottom:120px;animation:bounce 1s ease-in-out infinite">
+    <svg viewBox="0 0 52 80"><circle cx="26" cy="14" r="12" fill="#534AB7"/><text x="26" y="19" text-anchor="middle" font-size="14" fill="#fff">👦</text><rect x="10" y="28" width="32" height="28" rx="8" fill="#534AB7"/><text x="26" y="47" text-anchor="middle" font-size="9" font-weight="600" fill="#EEEDFE">VAR1</text><rect x="18" y="58" width="8" height="18" rx="4" fill="#3C3489"/><rect x="26" y="58" width="8" height="18" rx="4" fill="#3C3489"/></svg>
+  </div>
+  <div class="char" id="c4b" style="right:50px;bottom:120px;transform:scaleX(-1)">
+    <svg viewBox="0 0 52 80"><circle cx="26" cy="14" r="12" fill="#993C1D"/><text x="26" y="19" text-anchor="middle" font-size="14" fill="#fff">👧</text><rect x="10" y="28" width="32" height="28" rx="8" fill="#993C1D"/><text x="26" y="47" text-anchor="middle" font-size="9" font-weight="600" fill="#FAECE7">VAR2</text><rect x="18" y="58" width="8" height="18" rx="4" fill="#712B13"/><rect x="26" y="58" width="8" height="18" rx="4" fill="#712B13"/></svg>
+  </div>
+  <div class="memory-box" id="mb4old" style="top:50px;left:50%;transform:translateX(-50%) scale(.5);background:#0d2e22;border-color:#0F6E56;color:#9FE1CB;animation-delay:.3s">
+    <div style="font-size:10px;color:#5DCAA5;margin-bottom:3px">OLD BLOCK</div>
+    <div style="font-family:var(--font-mono);font-size:14px">'Important'</div>
+    <div style="font-size:10px;color:#085041;margin-top:2px">0x…4e60</div>
+  </div>
+  <div class="memory-box" id="mb4new" style="top:50px;right:30px;background:#2e0d0d;border-color:#993C1D;color:#F0997B;animation-delay:.9s">
+    <div style="font-size:10px;color:#D85A30;margin-bottom:3px">NEW BLOCK !</div>
+    <div style="font-family:var(--font-mono);font-size:14px">'Important·'</div>
+    <div style="font-size:10px;color:#4A1B0C;margin-top:2px">0x…2f10</div>
+  </div>
+  <div id="boom4" style="position:absolute;top:130px;left:50%;transform:translateX(-50%);font-size:36px;opacity:0;animation:zoomIn .4s 1.3s ease both">💥</div>
+  <div class="speech" style="left:100px;bottom:195px;animation-delay:.4s">Still<br><b>'Important'</b></div>
+  <div class="speech right" style="right:90px;bottom:195px;animation-delay:1s;background:#fff3f0;border-left:3px solid #f87171">I added a <b>space</b>...<br>'Important<b> </b>'</div>
+  <div id="chainbroke" style="position:absolute;bottom:200px;left:50%;transform:translateX(-50%);font-size:24px;opacity:0;animation:zoomIn .3s 1.5s ease both">⛓️‍💥</div>
+  <div class="code-ticker"><span class="hi">variable2</span> = <span class="st">'Important <span style="background:#f87171;color:#fff;border-radius:2px;padding:0 2px">·</span>'</span> <span style="color:#f87171">← extra space = new object!</span></div>
+</div>
+
+<div class="scene" id="sc5">
+  <div class="scene-label">Scene 5 — Two separate homes</div>
+  <div class="char" style="left:30px;bottom:110px;animation:bounce 1.1s ease-in-out infinite">
+    <svg viewBox="0 0 52 80"><circle cx="26" cy="14" r="12" fill="#534AB7"/><text x="26" y="19" text-anchor="middle" font-size="14" fill="#fff">👦</text><rect x="10" y="28" width="32" height="28" rx="8" fill="#534AB7"/><text x="26" y="47" text-anchor="middle" font-size="9" font-weight="600" fill="#EEEDFE">VAR1</text><rect x="18" y="58" width="8" height="18" rx="4" fill="#3C3489"/><rect x="26" y="58" width="8" height="18" rx="4" fill="#3C3489"/></svg>
+  </div>
+  <div class="char" style="right:30px;bottom:110px;transform:scaleX(-1);animation:bounce 1.1s .4s ease-in-out infinite">
+    <svg viewBox="0 0 52 80"><circle cx="26" cy="14" r="12" fill="#993C1D"/><text x="26" y="19" text-anchor="middle" font-size="14" fill="#fff">👧</text><rect x="10" y="28" width="32" height="28" rx="8" fill="#993C1D"/><text x="26" y="47" text-anchor="middle" font-size="9" font-weight="600" fill="#FAECE7">VAR2</text><rect x="18" y="58" width="8" height="18" rx="4" fill="#712B13"/><rect x="26" y="58" width="8" height="18" rx="4" fill="#712B13"/></svg>
+  </div>
+  <div style="position:absolute;top:40px;left:60px;background:#0d1a2e;border:2px solid #185FA5;border-radius:12px;padding:10px 16px;text-align:center;animation:slideDown .4s .2s ease both;opacity:0" id="h5a">
+    <div style="font-size:18px">🏠</div>
+    <div style="font-size:11px;color:#85B7EB;font-family:var(--font-mono)">'Important'</div>
+    <div style="font-size:10px;color:#0C447C;font-family:var(--font-mono)">0x…4e60</div>
+  </div>
+  <div style="position:absolute;top:40px;right:60px;background:#2e0d0d;border:2px solid #993C1D;border-radius:12px;padding:10px 16px;text-align:center;animation:slideDown .4s .5s ease both;opacity:0" id="h5b">
+    <div style="font-size:18px">🏠</div>
+    <div style="font-size:11px;color:#F0997B;font-family:var(--font-mono)">'Important '</div>
+    <div style="font-size:10px;color:#4A1B0C;font-family:var(--font-mono)">0x…2f10</div>
+  </div>
+  <div style="position:absolute;top:170px;left:50%;transform:translateX(-50%);background:#0a0a1a;border:1px solid #2a2a3a;border-radius:10px;padding:10px 18px;font-family:var(--font-mono);font-size:12px;animation:zoomIn .4s .8s ease both;opacity:0;text-align:center" id="term5">
+    <div style="animation:slideDown .3s 1s ease both;opacity:0;color:#aaa" id="t5a"><span style="color:#85B7EB">140234567890</span> ← var1</div>
+    <div style="animation:slideDown .3s 1.3s ease both;opacity:0;color:#aaa" id="t5b"><span style="color:#F0997B">140987654321</span> ← var2</div>
+    <div style="animation:slideDown .3s 1.6s ease both;opacity:0" id="t5c"><span style="color:#a78bfa">v1 is v2</span> → <span style="color:#f87171;font-weight:700">False</span> 😱</div>
+  </div>
+  <div class="speech" style="left:80px;bottom:185px;animation-delay:.3s">My address:<br><b style="color:#185FA5">…4e60</b></div>
+  <div class="speech right" style="right:80px;bottom:185px;animation-delay:.7s">Mine is different!<br><b style="color:#993C1D">…2f10</b></div>
+  <div class="code-ticker"><span class="fn">id</span>(<span class="hi">variable1</span>) = <span class="st">140234567890</span> &nbsp;|&nbsp; <span class="fn">id</span>(<span class="hi">variable2</span>) = <span class="op">140987654321</span> — <span class="op">different!</span></div>
+</div>
+
+<div class="scene" id="sc6">
+  <div class="scene-label">Scene 6 — The moral of the story</div>
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:30px 24px 50px">
+    <div style="display:flex;gap:14px;margin-bottom:6px">
+      <span style="font-size:28px;animation:bounce .9s ease-in-out infinite">👦</span>
+      <span style="font-size:28px;animation:bounce .9s .3s ease-in-out infinite">👧</span>
+      <span style="font-size:28px;animation:bounce .9s .15s ease-in-out infinite">🏛️</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:440px">
+      <div style="background:#0d2e22;border:1px solid #0F6E56;border-radius:10px;padding:9px 13px;display:flex;align-items:center;gap:10px;animation:slideDown .4s .1s ease both;opacity:0">
+        <span style="font-size:18px">🔗</span>
+        <span style="font-size:12px;color:#9FE1CB">Same string value → <b style="color:#34d399">same memory reference</b> — Python interns it</span>
+      </div>
+      <div style="background:#2e1a0d;border:1px solid #854F0B;border-radius:10px;padding:9px 13px;display:flex;align-items:center;gap:10px;animation:slideDown .4s .3s ease both;opacity:0">
+        <span style="font-size:18px">⛓️‍💥</span>
+        <span style="font-size:12px;color:#FAC775">Different value → <b style="color:#facc15">brand-new object</b> in memory, even one space</span>
+      </div>
+      <div style="background:#1a0d2e;border:1px solid #534AB7;border-radius:10px;padding:9px 13px;display:flex;align-items:center;gap:10px;animation:slideDown .4s .5s ease both;opacity:0">
+        <span style="font-size:18px">🔒</span>
+        <span style="font-size:12px;color:#CECBF6">Strings are <b style="color:#AFA9EC">immutable</b> — any change creates a new object</span>
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:22px;font-weight:700;color:#facc15;font-family:var(--font-sans);animation:zoomIn .5s .9s ease both;opacity:0">Python Memory Mastered! 🚀</div>
+    <button class="cbtn go" style="margin-top:6px;animation:slideDown .4s 1.1s ease both;opacity:0" onclick="restart()">Watch Again</button>
+  </div>
+</div>
+
+</div>
+
+<div class="controls-bar">
+  <div class="narr-text" id="narr">Press <b>Next</b> to begin the Python adventure!</div>
+  <div style="display:flex;gap:8px">
+    <button class="cbtn" id="pb" onclick="prev()" disabled>← Prev</button>
+    <button class="cbtn go" id="nb" onclick="next()">Next →</button>
+  </div>
+</div>
+
+<script>
+const narrs=[
+  "Press <b>Next</b> to begin the Python adventure!",
+  "Meet <b>Var1</b> and <b>Var2</b> — two variables both holding the string <b>'Important'</b>. Do they share the same memory?",
+  "Python's <b>Memory Palace</b> holds one copy of <b>'Important'</b>. Both variables point to the exact same block — that's <b>string interning</b>!",
+  "The IDs are <b>identical</b>! <code>variable1 is variable2</code> returns <b>True</b>. One string, two names, zero waste.",
+  "Var2 adds a <b>trailing space</b>... and boom! Python can't intern it — a <b>brand-new memory block</b> is born. The link is broken!",
+  "Now they live in <b>separate homes</b>. Different addresses, different IDs. Even a single space creates a whole new object.",
+  "The lesson: same string = shared memory. Any difference = new object. Strings are <b>immutable</b> in Python. Adventure complete!"
+];
+let cur=0; const total=7;
+const hud=document.getElementById('hud');
+for(let i=0;i<total;i++){const d=document.createElement('div');d.className='hud-dot'+(i===0?' on':'');hud.appendChild(d);}
+
+function updHud(){document.querySelectorAll('.hud-dot').forEach((d,i)=>{d.className='hud-dot'+(i<cur?' done':i===cur?' on':'')})}
+
+function showScene(n){
+  document.querySelectorAll('.scene').forEach((s,i)=>s.classList.toggle('active',i===n));
+  document.getElementById('narr').innerHTML=narrs[n];
+  document.getElementById('pb').disabled=n===0;
+  const nb=document.getElementById('nb');
+  nb.textContent=n===total-1?'':n===0?'Start! →':'Next →';
+  nb.style.display=n===total-1?'none':'';
+  updHud();
+  if(n===2) setTimeout(drawArrows,800);
+  if(n===3){['tid1','tid2','tid3','idchars','stars3'].forEach((id,i)=>{const el=document.getElementById(id);if(el){el.style.opacity='0';el.style.animation='none';void el.offsetWidth;el.style.animation=`slideDown .3s ${.4+i*.3}s ease both`}})}
+}
+
+function drawArrows(){
+  const cinema=document.getElementById('cinema');
+  const r=cinema.getBoundingClientRect();
+  const mp=document.getElementById('mempal');
+  if(!mp)return;
+  const mr=mp.getBoundingClientRect();
+  const mpCx=mr.left-r.left+mr.width/2; const mpBot=mr.bottom-r.top;
+  const c1=document.querySelector('#sc2 .char:first-of-type');
+  const c2=document.querySelector('#sc2 .char:last-of-type');
+  const a1=document.getElementById('a1');const a2=document.getElementById('a2');
+  if(c1&&a1){const cr=c1.getBoundingClientRect();const cx=cr.left-r.left+26;const cy=cr.top-r.top+20;a1.setAttribute('d',`M${cx},${cy} Q${cx+40},${(cy+mpBot)/2} ${mpCx},${mpBot}`);a1.style.opacity='1';}
+  if(c2&&a2){const cr=c2.getBoundingClientRect();const cx=cr.left-r.left+26;const cy=cr.top-r.top+20;a2.setAttribute('d',`M${cx},${cy} Q${cx-40},${(cy+mpBot)/2} ${mpCx},${mpBot}`);a2.style.opacity='1';}
+}
+
+function next(){if(cur<total-1){cur++;showScene(cur);}}
+function prev(){if(cur>0){cur--;showScene(cur);}}
+function restart(){cur=0;showScene(0);}
+
+const cvs=document.getElementById('bg');
+const ctx=cvs.getContext('2d');
+cvs.width=680;cvs.height=480;
+const stars=Array.from({length:60},()=>({x:Math.random()*680,y:Math.random()*480,r:Math.random()*1.5+.3,s:Math.random()*2+1}));
+let t=0;
+function drawBg(){
+  ctx.clearRect(0,0,680,480);
+  ctx.fillStyle='#0d0b1a';ctx.fillRect(0,0,680,480);
+  stars.forEach(s=>{const b=.4+.4*Math.sin(t/s.s);ctx.globalAlpha=b;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();});
+  ctx.globalAlpha=1;
+  ctx.fillStyle='rgba(83,74,183,.06)';ctx.fillRect(0,380,680,100);
+  ctx.fillStyle='rgba(83,74,183,.04)';ctx.fillRect(0,420,680,60);
+  t+=.04;requestAnimationFrame(drawBg);
+}
+drawBg();
+</script>
